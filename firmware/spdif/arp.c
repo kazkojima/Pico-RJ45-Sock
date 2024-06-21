@@ -63,7 +63,7 @@ void arp_init(void) {
 }
 
 
-void arp_packet_gen_10base(uint32_t *buf, uint64_t dst_mac, uint32_t sender_ip) {
+void arp_packet_gen_10base(uint32_t *buf, uint64_t dst_mac, uint32_t sender_ip, uint16_t opcode) {
     uint32_t i = 0; 
     uint32_t idx = 0;
 
@@ -106,9 +106,9 @@ void arp_packet_gen_10base(uint32_t *buf, uint64_t dst_mac, uint32_t sender_ip) 
     // Protocol size = 4
     data_8b[idx++] = 0x04;
 
-    // OPcode = 2(Reply)
-    data_8b[idx++] = 0x00;
-    data_8b[idx++] = 0x02;
+    // OPcode = 2(Reply), 1(Request)
+    data_8b[idx++] = (opcode >> 8) & 0xFF;
+    data_8b[idx++] = (opcode >> 0) & 0xFF;
 
     // Sender MAC address
     data_8b[idx++] = (DEF_SYS_PICO_MAC >> 40) & 0xFF;
