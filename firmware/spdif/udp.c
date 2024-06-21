@@ -70,7 +70,7 @@ void udp_init(void) {
 }
 
 
-void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload) {
+void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint64_t udp_dst_mac) {
     uint16_t udp_chksum = 0;
     uint32_t i, j, idx = 0, ans;
 
@@ -90,12 +90,12 @@ void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload) {
     // SFD
     data_8b[idx++] = 0xD5;
     // Destination MAC Address
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >> 40) & 0xFF;
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >> 32) & 0xFF;
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >> 24) & 0xFF;
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >> 16) & 0xFF;
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >>  8) & 0xFF;
-    data_8b[idx++] = (DEF_SYS_UDP_DST_MAC >>  0) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >> 40) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >> 32) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >> 24) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >> 16) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >>  8) & 0xFF;
+    data_8b[idx++] = (udp_dst_mac >>  0) & 0xFF;
     // Source MAC Address
     data_8b[idx++] = (DEF_SYS_PICO_MAC >> 40) & 0xFF;
     data_8b[idx++] = (DEF_SYS_PICO_MAC >> 32) & 0xFF;
