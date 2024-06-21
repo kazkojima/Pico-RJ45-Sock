@@ -7,7 +7,7 @@
 import os
 import sys
 
-PIO_CLOCK_FREQ = 120000000
+PIO_CLOCK_FREQ = 125000000
 
 in_file = sys.argv[1]
 out_dir = sys.argv[2]

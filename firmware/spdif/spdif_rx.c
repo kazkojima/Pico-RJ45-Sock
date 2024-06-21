@@ -19,7 +19,7 @@
 #include "spdif_rx_96000.pio.h"
 #include "spdif_rx_192000.pio.h"
 
-#define SYSTEM_CLK_FREQUENCY (120000000)
+#define SYSTEM_CLK_FREQUENCY (125000000)
 // sample words to detect is equivalent to 64*4+8 symbols (2 frames + sync) at 44.1 KHz @ 125 MHz clock
 // because at least one Sync M Code has to be included in sampled words (-> need 2 frames considering when head block hits)
 #define SPDIF_RX_CAPTURE_SIZE (((SYSTEM_CLK_FREQUENCY / SAMP_FREQ_44100 / 128 + 1) * (64 * 4 + 8) + 31) / 32)
@@ -187,7 +187,7 @@ static inline void _spdif_rx_program_init(PIO pio, uint sm, uint offset, uint en
     sm_config_set_in_pins(&sm_config, pin); // PINCTRL_IN_BASE for wait
     sm_config_set_in_shift(&sm_config, true, false, 32); // shift_right, no autopush, 32bit
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_RX);
-    sm_config_set_clkdiv(&sm_config, 2);
+    sm_config_set_clkdiv(&sm_config, 2.0f);
 
     pio_sm_init(pio, sm, offset, &sm_config);
     pio_sm_set_pins(pio, sm, 0); // clear pins
