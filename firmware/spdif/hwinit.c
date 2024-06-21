@@ -23,7 +23,7 @@ void hw_init()
     // Core
     vreg_set_voltage(VREG_VOLTAGE_1_20);    // Increase core voltage to stabilize overclocking
     sleep_ms(10);
-    set_sys_clock_khz(240000, true);        // Over clock 240MHz
+    set_sys_clock_khz(250000, true);        // Over clock 250MHz
 
     // LED
     gpio_init(PICO_DEFAULT_LED_PIN);
