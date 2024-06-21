@@ -29,8 +29,6 @@
 
 #define DEF_ETHTYPE_IPV4        (0x0800)        // EtherType : IPv4
 #define DEF_ETHTYPE_ARP         (0x0806)        // EtherType : ARP
-#define DEF_ARPOPC_REQUEST      (0x0001)        // ARP Opcode : Request
-#define DEF_ARPOPC_REPLY        (0x0002)        // ARP Opcode : Reply
 
 #define DEF_IP_PROTOCOL_ICMP    (0x01)
 #define DEF_IP_PROTOCOL_TCP     (0x06)
@@ -137,6 +135,21 @@ uint32_t eth_main(void) {
     return ret;
 }
 
+// arp cache table
+#define ARP_CACHE_SIZE 4
+static struct { uint32_t ip; uint64_t eth;} arp_cache[ARP_CACHE_SIZE];
+static uint32_t arp_cache_index = 0;
+bool eth_arp_resolve(uint32_t ip, uint64_t *ethp) {
+    int i;
+    for (i == 0; i < ARP_CACHE_SIZE; i++) {
+        if (arp_cache[i].ip == ip) {
+            if (ethp)
+                *ethp = arp_cache[i].eth;
+	    return true;
+        }
+    }
+    return false;
+}
 
 // Analysis and processing of incoming packets
 void _rx_packets_proc(void) {
@@ -158,7 +171,7 @@ void _rx_packets_proc(void) {
     if (eth_type == DEF_ETHTYPE_ARP) {
         if (arp_opcode == DEF_ARPOPC_REQUEST) {
             if (arp_target_ip == pico_ip_addr) {
-                arp_packet_gen_10base(tx_buf_arp, eth_src, arp_sender_ip);
+                arp_packet_gen_10base(tx_buf_arp, eth_src, arp_sender_ip, DEF_ARPOPC_REPLY);
 
                 dma_channel_configure (
                     dma_ch_10base_t,        // Channel to be configured
@@ -175,6 +188,25 @@ void _rx_packets_proc(void) {
                 printf("[ARP] Who has %d.%d.%d.%d? ", (arp_target_ip >> 24), (arp_target_ip >> 16) & 0xFF, (arp_target_ip >> 8) & 0xFF, (arp_target_ip & 0xFF));
                 printf("Tell %d.%d.%d.%d \r\n", (arp_sender_ip >> 24), (arp_sender_ip >> 16) & 0xFF, (arp_sender_ip >> 8) & 0xFF, (arp_sender_ip & 0xFF));
 #endif
+            }
+        } else if (arp_opcode == DEF_ARPOPC_REPLY) {
+            uint64_t arp_sender_eth = (((uint64_t)gsram[slot][5] & 0xFFFF) << 32) | gsram[slot][6];
+#if UART_EBG_EN
+            printf("[ARP reply] %d.%d.%d.%d is-at ", (arp_sender_ip >> 24), (arp_sender_ip >> 16) & 0xFF, (arp_sender_ip >> 8) & 0xFF, (arp_sender_ip & 0xFF));
+	    printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n",   (uint8_t)(arp_sender_eth >> 40), (uint8_t)(arp_sender_eth >> 32), (uint8_t)(arp_sender_eth >> 24), (uint8_t)(arp_sender_eth >> 16), (uint8_t)(arp_sender_eth >> 8), (uint8_t)(arp_sender_eth));
+#endif
+            int i;
+            for (i = 0; i < ARP_CACHE_SIZE; i++) {
+                if (arp_cache[i].ip == arp_sender_ip) {
+                    arp_cache[i].eth = arp_sender_eth;
+                }
+            }
+            if (i >= ARP_CACHE_SIZE) {
+                arp_cache[arp_cache_index].ip = arp_sender_ip;
+                arp_cache[arp_cache_index].eth = arp_sender_eth;
+                arp_cache_index++;
+                if (arp_cache_index >= ARP_CACHE_SIZE)
+                  arp_cache_index = 0;
             }
         }
     } else if (eth_type == DEF_ETHTYPE_IPV4) {
@@ -221,7 +253,7 @@ bool _send_udp(void) {
     if ((time_now - time_udp) > DEF_DMY_INTERVAL_US) {
         time_udp = time_now;
         sprintf(udp_payload, "Hello World!! Raspico 10BASE-T !! lp_cnt:%d", udp_cnt++);
-        udp_packet_gen_10base(tx_buf_udp, udp_payload);
+        udp_packet_gen_10base(tx_buf_udp, udp_payload, DEF_SYS_UDP_DST_MAC);
         for (uint32_t i = 0; i < DEF_UDP_BUF_SIZE+1; i++) {
             ser_10base_t_tx_10b(pio_serdes, sm_tx, tx_buf_udp[i]);
         }

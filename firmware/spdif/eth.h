@@ -6,5 +6,6 @@
 void eth_init(void);
 uint32_t eth_main(void);
 void eth_tx_data(uint32_t *buf, uint32_t count);
+bool eth_arp_resolve(uint32_t ip, uint64_t *ethp) ;
 
 #endif //__ETH_H__
