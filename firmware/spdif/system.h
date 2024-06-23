@@ -17,7 +17,7 @@
 
 
 // For UDP
-#define DEF_SYS_UDP_DST_MAC     (0x6C4B909F321F)
+#define DEF_SYS_UDP_DST_MAC     (0xFFFFFFFFFFFF)
 
 #define DEF_SYS_UDP_DST_IP1     (10)
 #define DEF_SYS_UDP_DST_IP2     (253)
