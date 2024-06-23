@@ -3,5 +3,5 @@ starting with spdif_ and scripts/gen_pio_by_freq.py have the file headers
 you use for license and copy right information.  LICENSE.pico_spdif_rx
 is the license term for them which are imported from
 https://github.com/elehobica/pico_spdif_rx.git
-All other files is covered by the LICENSE file at the top directory of this
+All other files are covered by the LICENSE file at the top directory of this
 Pico-RJ45-Sock repository.
