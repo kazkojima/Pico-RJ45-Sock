@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 // Pico-10BASE-T S/PDIF Sample
-//   Original is: 
+//   Original is:
 /********************************************************
  * Title    : Pico-10BASE-T VBAN Sample
  * Date     : 2024/03/15
