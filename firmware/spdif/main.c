@@ -16,21 +16,24 @@
 #include "system.h"
 
 #include "spdif_rx.h"
+#include "rx890x_i2c.h"
 
 #define CH1_ONLY  (0)
 #define CH2_ONLY  (1)
 #define CH_BOTH    (0)
-#define SAMPLE_RATE_PER_MS  96
 
-#if (CH_BOTH && DEF_UDP_PAYLOAD_SIZE != SAMPLE_RATE_PER_MS*4*2)
-#error "DEF_UDP_PAYLOAD_SIZE should be SAMPLE_RATE_PER_MS*4*2 for stereo"
+#define SAMPLE_RATE_PER_MS  96
+#define UDP_PAYLOAD_SIZE    (96*4)
+
+#if (CH_BOTH && UDP_PAYLOAD_SIZE != SAMPLE_RATE_PER_MS*4*2)
+#error "UDP_PAYLOAD_SIZE should be SAMPLE_RATE_PER_MS*4*2 for stereo"
 #endif
-#if (!CH_BOTH && DEF_UDP_PAYLOAD_SIZE != SAMPLE_RATE_PER_MS*4)
-#error "DEF_UDP_PAYLOAD_SIZE should be SAMPLE_RATE_PER_MS*4 for mono"
+#if (!CH_BOTH && UDP_PAYLOAD_SIZE != SAMPLE_RATE_PER_MS*4)
+#error "UDP_PAYLOAD_SIZE should be SAMPLE_RATE_PER_MS*4 for mono"
 #endif
 
 static uint32_t tx_buf_arp[DEF_ARP_BUF_SIZE+1] = {0};
-static uint32_t tx_buf_udp[DEF_UDP_BUF_SIZE+1] = {0};
+static uint32_t tx_buf_udp[ETHER_BUF_SIZE(MAX_UDP_PAYLOAD_SIZE)+1] = {0};
 
 #define DAC_ZERO 1
 typedef struct { uint8_t b[4]; } se32_t;
@@ -119,12 +122,29 @@ void on_lost_stable_func()
 {
     // callback function should be returned as quick as possible
     udp_cancel_flg = true;
+    //gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, 0);
+    //gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, 0);
 }
+
+#if RTC_RX890X_EN
+void rtc_1ps_callback(uint gpio, uint32_t events) {
+    printf("RTC updated %d %x\r\n", gpio, events);
+}
+#endif
 
 int main() {
 
     stdio_init_all();
     hw_init();
+
+    printf("[BOOT]\r\n");
+
+    gpio_init(DEF_SYS_HWPIN_SPDIF_ST0);
+    gpio_set_dir(DEF_SYS_HWPIN_SPDIF_ST0, GPIO_OUT);
+    gpio_init(DEF_SYS_HWPIN_SPDIF_ST1);
+    gpio_set_dir(DEF_SYS_HWPIN_SPDIF_ST1, GPIO_OUT);
+    gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, 0);
+    gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, 0);
 
     spdif_rx_config_t config = {
         .data_pin = DEF_SYS_HWPIN_SPDIF,
@@ -135,25 +155,45 @@ int main() {
         .flags = SPDIF_RX_FLAGS_ALL
     };
 
+#if 0
     spdif_rx_start(&config);
     spdif_rx_set_callback_on_stable(on_stable_func);
     spdif_rx_set_callback_on_lost_stable(on_lost_stable_func);
+#endif
 
-    eth_init();
+#if RTC_RX890X_EN
+    uint64_t uxtime;
+    //rx890x_set_update_irq(rtc_1ps_callback);
+    rx890x_init();
+    rx890x_get_time(&uxtime);
+    rx890x_set_time(uxtime);
+    rx890x_get_time(&uxtime);
+#endif
 
-    printf("[BOOT]\r\n");
-
+#if 0
     while (!udp_setup_flg) {
         sleep_ms(10);
+        uint state = spdif_rx_get_state();
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, state & 1);
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, (state >> 1) & 1);
     }
+#endif
     //printf("rate %d\r\n", sample_rate);
+    //printf("state %d\n", spdif_rx_get_state());
+    uint state = spdif_rx_get_state();
+    gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, state & 1);
+    gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, (state >> 1) & 1);
 
+    eth_init();
     hw_start_led_blink();
 
+    printf("[ARP request]\r\n");
     uint32_t udp_dst_ip = (DEF_SYS_UDP_DST_IP1 << 24) + (DEF_SYS_UDP_DST_IP2 << 16) + (DEF_SYS_UDP_DST_IP3 << 8) + (DEF_SYS_UDP_DST_IP4 << 0);
+    arp_packet_gen_10base(tx_buf_arp, 0xFFFFFFFFFFFFUL, udp_dst_ip, DEF_ARPOPC_REQUEST);
+    // ??? Send dummy
+    eth_tx_data(tx_buf_arp, DEF_ARP_BUF_SIZE+1);
 
     eth_main();
-    arp_packet_gen_10base(tx_buf_arp, 0xFFFFFFFFFFFFUL, udp_dst_ip, DEF_ARPOPC_REQUEST);
     eth_tx_data(tx_buf_arp, DEF_ARP_BUF_SIZE+1);
 
     uint32_t time = time_us_32();
@@ -162,17 +202,17 @@ int main() {
 
     while(1) {
         eth_main();
-        if (time_us_32() - time > 100000) {
+        if (eth_arp_resolve(udp_dst_ip, &udp_dst_eth) == true) {
+            printf("[ARP reply] %d.%d.%d.%d is-at ", (udp_dst_ip >> 24), (udp_dst_ip >> 16) & 0xFF, (udp_dst_ip >> 8) & 0xFF, (udp_dst_ip & 0xFF));
+            printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n",   (uint8_t)(udp_dst_eth >> 40), (uint8_t)(udp_dst_eth >> 32), (uint8_t)(udp_dst_eth >> 24), (uint8_t)(udp_dst_eth >> 16), (uint8_t)(udp_dst_eth >> 8), (uint8_t)(udp_dst_eth));
+            break;
+        }
+        if (time_us_32() - time > 50000) {
             time = time_us_32();
-            if (eth_arp_resolve(udp_dst_ip, &udp_dst_eth) == true) {
-                printf("[ARP reply] %d.%d.%d.%d is-at ", (udp_dst_ip >> 24), (udp_dst_ip >> 16) & 0xFF, (udp_dst_ip >> 8) & 0xFF, (udp_dst_ip & 0xFF));
-                printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n",   (uint8_t)(udp_dst_eth >> 40), (uint8_t)(udp_dst_eth >> 32), (uint8_t)(udp_dst_eth >> 24), (uint8_t)(udp_dst_eth >> 16), (uint8_t)(udp_dst_eth >> 8), (uint8_t)(udp_dst_eth));
-                break;
-            }
             // Retry arp request upto 5 times
             if (--arp_retry <= 0)
                 break;
-            arp_packet_gen_10base(tx_buf_arp, 0xFFFFFFFFFFFFUL, udp_dst_ip, DEF_ARPOPC_REQUEST);
+            printf("[ARP request retry]\r\n");
             eth_tx_data(tx_buf_arp, DEF_ARP_BUF_SIZE+1);
         }
     }
@@ -187,8 +227,8 @@ int main() {
         eth_main();
         spdif_rx_read(sample_buffer, n_samples);
         //printf("data %08x\n", sample_buffer[0]);
-        udp_packet_gen_10base(tx_buf_udp, (uint8_t *)sample_buffer, udp_dst_eth);
-        eth_tx_data(tx_buf_udp, DEF_UDP_BUF_SIZE+1);
+        udp_packet_gen_10base(tx_buf_udp, (uint8_t *)sample_buffer, UDP_PAYLOAD_SIZE, udp_dst_eth);
+        eth_tx_data(tx_buf_udp, ETHER_BUF_SIZE(UDP_PAYLOAD_SIZE)+1);
     }
 
     return 0;
