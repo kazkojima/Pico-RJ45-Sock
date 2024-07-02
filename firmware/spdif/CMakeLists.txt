@@ -39,6 +39,7 @@ target_sources(${target_name} PRIVATE
     arp.c
     icmp.c
     spdif_rx.c
+    rx890x_i2c.c
     )
 
 target_link_libraries(${target_name} PRIVATE
@@ -46,6 +47,7 @@ target_link_libraries(${target_name} PRIVATE
     hardware_pio
     hardware_irq
     hardware_dma
+    hardware_i2c
     pico_multicore
     )
 
