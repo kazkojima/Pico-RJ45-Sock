@@ -46,7 +46,7 @@ static void _make_crc_table(void) {
 }
 #endif
 
-static uint8_t  data_8b[DEF_UDP_BUF_SIZE];
+static uint8_t  data_8b[ETHER_BUF_SIZE(MAX_UDP_PAYLOAD_SIZE)];
 static uint16_t ip_identifier = 0;
 static uint32_t ip_chk_sum1, ip_chk_sum2, ip_chk_sum3;
 
@@ -57,8 +57,6 @@ static const uint16_t  eth_type            = 0x0800; // IP
 static const uint8_t   ip_version          = 4;      // IP v4
 static const uint8_t   ip_head_len         = 5;
 static const uint8_t   ip_type_of_service  = 0;
-static const uint16_t  ip_total_len        = 20 + DEF_UDP_LEN;
-
 
 
 void udp_init(void) {
@@ -70,12 +68,13 @@ void udp_init(void) {
 }
 
 
-void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint64_t udp_dst_mac) {
+void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint16_t udp_payload_len, uint64_t udp_dst_mac) {
     uint16_t udp_chksum = 0;
     uint32_t i, j, idx = 0, ans;
+    uint16_t  ip_len = UDP_LENGTH(udp_payload_len) + 20;
 
     // Calculate the ip check sum
-    ip_chk_sum1 = 0x0000C512 + ip_identifier + ip_total_len + (DEF_SYS_PICO_IP1 << 8) + DEF_SYS_PICO_IP2 + (DEF_SYS_PICO_IP3 << 8) + DEF_SYS_PICO_IP4 +
+    ip_chk_sum1 = 0x0000C512 + ip_identifier + ip_len + (DEF_SYS_PICO_IP1 << 8) + DEF_SYS_PICO_IP2 + (DEF_SYS_PICO_IP3 << 8) + DEF_SYS_PICO_IP4 +
                   (DEF_SYS_UDP_DST_IP1 << 8) + DEF_SYS_UDP_DST_IP2 + (DEF_SYS_UDP_DST_IP3 << 8) + DEF_SYS_UDP_DST_IP4;
     ip_chk_sum2 = (ip_chk_sum1 & 0x0000FFFF) + (ip_chk_sum1 >> 16);
     ip_chk_sum3 = ~((ip_chk_sum2 & 0x0000FFFF) + (ip_chk_sum2 >> 16));
@@ -109,8 +108,8 @@ void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint64_t udp_dst
     // IP Header
     data_8b[idx++] = (ip_version << 4) | (ip_head_len & 0x0F);
     data_8b[idx++] = (ip_type_of_service >>  0) & 0xFF;
-    data_8b[idx++] = (ip_total_len >>  8) & 0xFF;
-    data_8b[idx++] = (ip_total_len >>  0) & 0xFF;
+    data_8b[idx++] = (ip_len >>  8) & 0xFF;
+    data_8b[idx++] = (ip_len >>  0) & 0xFF;
     data_8b[idx++] = (ip_identifier >>  8) & 0xFF;
     data_8b[idx++] = (ip_identifier >>  0) & 0xFF;
     data_8b[idx++] = 0x00;
@@ -135,12 +134,12 @@ void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint64_t udp_dst
     data_8b[idx++] = (DEF_UDP_SRC_PORTNUM >>  0) & 0xFF;
     data_8b[idx++] = (DEF_UDP_DST_PORTNUM >>  8) & 0xFF;
     data_8b[idx++] = (DEF_UDP_DST_PORTNUM >>  0) & 0xFF;
-    data_8b[idx++] = (DEF_UDP_LEN >>  8) & 0xFF;
-    data_8b[idx++] = (DEF_UDP_LEN >>  0) & 0xFF;
+    data_8b[idx++] = (UDP_LENGTH(udp_payload_len) >>  8) & 0xFF;
+    data_8b[idx++] = (UDP_LENGTH(udp_payload_len) >>  0) & 0xFF;
     data_8b[idx++] = (udp_chksum >>  8) & 0xFF;
     data_8b[idx++] = (udp_chksum >>  0) & 0xFF;
     // UDP payload
-    for (i = 0; i < DEF_UDP_PAYLOAD_SIZE; i++) {
+    for (i = 0; i < udp_payload_len; i++) {
         data_8b[idx++] = udp_payload[i];
     }
 
@@ -183,7 +182,7 @@ void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint64_t udp_dst
     //==========================================================================
     // Manchester Encoder
     //==========================================================================
-    for (i = 0; i < DEF_UDP_BUF_SIZE; i++) {
+    for (i = 0; i < ETHER_BUF_SIZE(udp_payload_len); i++) {
         buf[i] = tbl_manchester[data_8b[i]];
     }
     // TP_IDL
