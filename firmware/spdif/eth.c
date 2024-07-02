@@ -14,12 +14,22 @@
 
 
 // Define
-#define HW_PINNUM_RXP           (17)            // Ethernet RX+
-#define HW_PINNUM_RXN           (16)            // Ethernet RX-
-#define HW_PINNUM_TXP           (15)            // Ethernet TX+
-#define HW_PINNUM_TXN           (14)            // Ethernet TX-
-#define HW_PINNUM_LED_G         (13)            // Ethernet LED G
-#define HW_PINNUM_LED_Y         (18)            // Ethernet LED Y
+#define HW_PINNUM_RXP           (14)            // Ethernet RX+
+#define HW_PINNUM_RXN           (15)            // Ethernet RX-
+#define HW_PINNUM_TXP           (16)            // Ethernet TX+
+#define HW_PINNUM_TXN           (17)            // Ethernet TX-
+#define HW_PINNUM_LED_G         (18)            // Ethernet LED G
+#define HW_PINNUM_LED_Y         (19)            // Ethernet LED Y
+
+#if HW_PINNUM_TXP+1 == HW_PINNUM_TXN
+#define HW_PINNUM_TXGR HW_PINNUM_TXP
+#define TX_POLALITY_REV true
+#elif HW_PINNUM_TXN+1 == HW_PINNUM_TXP
+#define HW_PINNUM_TXGR HW_PINNUM_TXN
+#define TX_POLALITY_REV false
+#else
+#error "HW_PINNUM_TXN and HW_PINNUM_TXP sould be contiguous"
+#endif
 
 #define HW_PINNUM_OUT0          (1)             // SMA OUT0 for Debug
 #define HW_PINNUM_OUT1          (0)             // SMA OUT0 for Debug
@@ -40,7 +50,6 @@ static PIO pio_serdes = pio0;
 static uint sm_tx = 0;
 static uint sm_rx = 1;
 volatile static uint32_t gsram[8][512]; // RX data buffer for Core0 and 1
-static uint32_t tx_buf_udp[DEF_UDP_BUF_SIZE+1] = {0};
 static uint32_t tx_buf_arp[DEF_ARP_BUF_SIZE+1] = {0};
 static uint32_t tx_buf_icmp[DEF_ICMP_BUF_SIZE+1] = {0};
 
@@ -74,8 +83,8 @@ void eth_init(void) {
     icmp_init();
 
     // 10BASE-T Serializer PIO init. Pin numbers must be sequential.
-    uint offset = pio_add_program(pio_serdes, &ser_10base_t_program);
-    ser_10base_t_program_init(pio_serdes, sm_tx, offset, HW_PINNUM_TXN);
+    uint offset = pio_add_program(pio_serdes, (TX_POLALITY_REV) ? &ser_10base_t_rev_program : &ser_10base_t_program);
+    ser_10base_t_program_init(pio_serdes, sm_tx, offset, HW_PINNUM_TXGR);
 
     // LED
     gpio_init(HW_PINNUM_LED_G);
@@ -141,6 +150,8 @@ static struct { uint32_t ip; uint64_t eth;} arp_cache[ARP_CACHE_SIZE];
 static uint32_t arp_cache_index = 0;
 bool eth_arp_resolve(uint32_t ip, uint64_t *ethp) {
     int i;
+    if (ip == 0)
+        return false;
     for (i == 0; i < ARP_CACHE_SIZE; i++) {
         if (arp_cache[i].ip == ip) {
             if (ethp)
@@ -243,6 +254,10 @@ void _rx_packets_proc(void) {
 
 
 // UDP Test
+#define DEF_UDP_PAYLOAD_SIZE    (64)
+#define DEF_UDP_BUF_SIZE		ETHER_BUF_SIZE(DEF_UDP_PAYLOAD_SIZE)
+static uint32_t tx_buf_udp[DEF_UDP_BUF_SIZE+1] = {0};
+
 bool _send_udp(void) {
     uint32_t time_now = time_us_32();
     uint8_t udp_payload[DEF_UDP_PAYLOAD_SIZE] = {0};
@@ -253,7 +268,7 @@ bool _send_udp(void) {
     if ((time_now - time_udp) > DEF_DMY_INTERVAL_US) {
         time_udp = time_now;
         sprintf(udp_payload, "Hello World!! Raspico 10BASE-T !! lp_cnt:%d", udp_cnt++);
-        udp_packet_gen_10base(tx_buf_udp, udp_payload, DEF_SYS_UDP_DST_MAC);
+        udp_packet_gen_10base(tx_buf_udp, udp_payload, DEF_UDP_PAYLOAD_SIZE, DEF_SYS_UDP_DST_MAC);
         for (uint32_t i = 0; i < DEF_UDP_BUF_SIZE+1; i++) {
             ser_10base_t_tx_10b(pio_serdes, sm_tx, tx_buf_udp[i]);
         }
