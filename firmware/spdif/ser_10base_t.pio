@@ -15,6 +15,17 @@
     out pc, 2  side 0b01    ; HIGH
 .wrap
 
+.program ser_10base_t_rev
+.side_set 2
+.origin 0
+
+;clk 20MHz, input 2bit
+.wrap_target
+    out pc, 2  side 0b00    ; IDLE
+    out pc, 2  side 0b01    ; HIGH
+    out pc, 2  side 0b10    ; LOW
+.wrap
+
 % c-sdk {
 #include "hardware/clocks.h"
 
