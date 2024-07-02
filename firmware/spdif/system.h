@@ -17,7 +17,7 @@
 
 
 // For UDP
-#define DEF_SYS_UDP_DST_MAC     (0xFFFFFFFFFFFF)
+#define DEF_SYS_UDP_DST_MAC     (0x6C4B909F321F)
 
 #define DEF_SYS_UDP_DST_IP1     (10)
 #define DEF_SYS_UDP_DST_IP2     (253)
@@ -25,7 +25,13 @@
 #define DEF_SYS_UDP_DST_IP4     (8)
 
 // H/W PIN
-#define DEF_SYS_HWPIN_SPDIF     (20)
 #define DEF_SYS_HWPIN_DCDC_PS   (23)
 
+// S/PDIF PIN
+#define DEF_SYS_HWPIN_SPDIF          	(22)
+#define DEF_SYS_HWPIN_SPDIF_ST0  (21)
+#define DEF_SYS_HWPIN_SPDIF_ST1  (20)
+
+// Compile switch for optional RTC
+#define RTC_RX890X_EN	(1)
 #endif //__SYSTEM_H__
