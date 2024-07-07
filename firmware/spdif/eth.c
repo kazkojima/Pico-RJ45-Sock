@@ -162,6 +162,13 @@ bool eth_arp_resolve(uint32_t ip, uint64_t *ethp) {
     return false;
 }
 
+// udp rx callback function pointer
+static void (*udp_rx_callback)(void *) = 0;
+
+void eth_set_udp_rx_callback(void (*f)(void *)) {
+    udp_rx_callback = f;
+}
+
 // Analysis and processing of incoming packets
 void _rx_packets_proc(void) {
     uint32_t pop_data = multicore_fifo_pop_blocking();  // index num
@@ -248,7 +255,9 @@ void _rx_packets_proc(void) {
             printf("dst:%d.%d.%d.%d ", (ip_dst_adr >> 24), (ip_dst_adr >> 16) & 0xFF, (ip_dst_adr >> 8) & 0xFF, (ip_dst_adr & 0xFF));
             printf("ipv4_len:%d \r\n", ip_len);
 #endif
-        }
+        } else if ((ip_protocol == DEF_IP_PROTOCOL_UDP) && udp_rx_callback) {
+	    (*udp_rx_callback) ((void *)&gsram[slot][8]);
+	}
     }
 }
 
@@ -257,6 +266,7 @@ void _rx_packets_proc(void) {
 #define DEF_UDP_PAYLOAD_SIZE    (64)
 #define DEF_UDP_BUF_SIZE		ETHER_BUF_SIZE(DEF_UDP_PAYLOAD_SIZE)
 static uint32_t tx_buf_udp[DEF_UDP_BUF_SIZE+1] = {0};
+#define DEF_SYS_UDP_DST_IP	((DEF_SYS_UDP_DST_IP1<<24)|(DEF_SYS_UDP_DST_IP2<<16)|(DEF_SYS_UDP_DST_IP3<<8)|(DEF_SYS_UDP_DST_IP4<<16))
 
 bool _send_udp(void) {
     uint32_t time_now = time_us_32();
@@ -268,7 +278,7 @@ bool _send_udp(void) {
     if ((time_now - time_udp) > DEF_DMY_INTERVAL_US) {
         time_udp = time_now;
         sprintf(udp_payload, "Hello World!! Raspico 10BASE-T !! lp_cnt:%d", udp_cnt++);
-        udp_packet_gen_10base(tx_buf_udp, udp_payload, DEF_UDP_PAYLOAD_SIZE, DEF_SYS_UDP_DST_MAC);
+        udp_packet_gen_10base(tx_buf_udp, udp_payload, DEF_UDP_PAYLOAD_SIZE, DEF_SYS_UDP_DST_IP, DEF_UDP_DST_PORTNUM, DEF_SYS_UDP_DST_MAC);
         for (uint32_t i = 0; i < DEF_UDP_BUF_SIZE+1; i++) {
             ser_10base_t_tx_10b(pio_serdes, sm_tx, tx_buf_udp[i]);
         }
