@@ -7,9 +7,10 @@
 #if RTC_RX890X_EN
 #include "hardware/gpio.h"
 
-void rx890x_init(void);
-bool rx890x_get_time(uint64_t *uxtime);
-bool rx890x_set_time(uint64_t uxtime);
+bool rx890x_init(void);
+bool rx890x_get_time(uint32_t *uxtime);
+bool rx890x_set_time(uint32_t uxtime);
+bool rx890x_clear_flag(void);
 void rx890x_set_update_irq(gpio_irq_callback_t callback);
 #endif // RTC_RX890X_EN
 #endif

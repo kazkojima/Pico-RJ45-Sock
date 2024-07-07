@@ -67,8 +67,8 @@ static int rx890x_read_regs(int regnum, uint length, uint8_t *values)
     uint8_t val = regnum;
     i2c_write_blocking(i2c0, RX890X_ADDR, &val, 1, true);
     i2c_read_blocking(i2c0, RX890X_ADDR, values, length, false);
-    printf("rx8901: read reg %d -> %02x\r\n", length, values[0]);
-     return 0;
+    //printf("rx8901: read reg %d -> %02x\r\n", length, values[0]);
+    return 0;
 }
 
 static void rx890x_reset(void)
@@ -82,8 +82,11 @@ static void rx890x_reset(void)
     i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
 }
 
-void rx890x_init(void)
+bool rx890x_init(void)
 {
+    uint8_t oldflag;
+    uint8_t buf[2];
+
     i2c_init(i2c0, 100 * 1000);
     gpio_set_function(DEF_SYS_I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(DEF_SYS_I2C_SCL_PIN, GPIO_FUNC_I2C);
@@ -92,7 +95,9 @@ void rx890x_init(void)
 
     sleep_ms(10);
 
-    uint8_t buf[2];
+    rx890x_read_regs(RX890X_REG_FLAG, 1, &oldflag);
+    //printf("[rx8901] flag reg %02x\r\n", oldflag);
+
     buf[0] = RX890X_REG_EXT;
     buf[1] = (2<<2); // FD=2
     i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
@@ -104,6 +109,8 @@ void rx890x_init(void)
     buf[0] = RX890X_REG_CTRL;
     buf[1] = (1 << 6)|(1<<5); // CSEL=1, UIE=1
     i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
+
+    return ((oldflag & RX890X_FLAG_V2F) == 0);
 }
 
 // days for Jan 1 1970
@@ -111,13 +118,13 @@ void rx890x_init(void)
 #define bcd2bin(x) (((x) & 0x0f) + ((x) >> 4) * 10)
 #define bin2bcd(x) ((((x) / 10) << 4) + (x) % 10)
 
-bool rx890x_get_time(uint64_t *uxtime)
+bool rx890x_get_time(uint32_t *uxtime)
 {
     uint8_t date[7];
     rx890x_read_regs(RX890X_REG_FLAG, 1, date);
-    printf("rx8901: flag %02x\r\n", date[0]);
+    //printf("rx8901: flag %02x\r\n", date[0]);
     rx890x_read_regs(RX890X_REG_SEC, 7, date);
-    printf("rx8901: read %02x %02x %02x %02x %02x %02x %02x\r\n", date[0], date[1], date[2], date[3], date[4], date[5], date[6]);
+    //printf("rx8901: read %02x %02x %02x %02x %02x %02x %02x\r\n", date[0], date[1], date[2], date[3], date[4], date[5], date[6]);
     if (uxtime) {
         uint second = bcd2bin(date[RX890X_REG_SEC] & 0x7f);
         uint minute = bcd2bin(date[RX890X_REG_MIN] & 0x7f);
@@ -135,7 +142,27 @@ bool rx890x_get_time(uint64_t *uxtime)
     return true;
 }
 
-bool rx890x_set_time(uint64_t uxtime)
+static uint leap(uint year)
+{
+    if (year % 400 == 0)
+        return 1;
+    else if (year % 100 == 0)
+        return 0;
+    else if (year % 4 == 0)
+        return 1;
+    return 0;
+}
+
+static uint ysize(uint year)
+{
+    return leap(year) ? 366 : 365;
+}
+
+static uint msize[2][12] =
+    {{ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 },
+     { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}};
+
+bool rx890x_set_time(uint32_t epoch)
 {
     uint8_t ctrl;
     uint8_t buf[2];
@@ -146,10 +173,30 @@ bool rx890x_set_time(uint64_t uxtime)
     buf[1] = ctrl;
     i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
 
-    uint8_t current_val[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint dayclock = epoch % (3600*24);
+    uint dayno = epoch / (3600*24);
+    uint tm_sec = dayclock % 60;
+    uint tm_min = (dayclock % 3600) / 60;
+    uint tm_hour = dayclock / 3600;
+    uint tm_wday = (dayno + 4) % 7;
+    uint year = 1970;
+    while (dayno >= ysize(year)) {
+        dayno -= ysize(year);
+        year += 1;
+    }
+    uint tm_year = year;
+    uint tm_mon = 0;
+    while (dayno >= msize[leap(year)][tm_mon]) {
+        dayno -= msize[leap(year)][tm_mon];
+        tm_mon += 1;
+    }
+    printf("%d %d %d (%d) %d:%d:%d\r\n", year, tm_mon+1, dayno+1, tm_wday, tm_hour, tm_min, tm_sec);
+    uint8_t current_val[7] =
+        {tm_sec, tm_min, tm_hour, tm_wday, dayno+1, tm_mon+1, year-2000};
+
     for (int i = 0; i < 7; i++) {
         buf[0] = RX890X_REG_SEC + i;
-        buf[1] = current_val[i];
+        buf[1] = bin2bcd(current_val[i]);
         i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
     }
 
@@ -157,6 +204,17 @@ bool rx890x_set_time(uint64_t uxtime)
     ctrl &= ~RX890X_CTRL_RESET;
     buf[0] = RX890X_REG_CTRL;
     buf[1] = ctrl;
+    i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
+
+    return true;
+}
+
+bool rx890x_clear_flag(void)
+{
+    uint8_t buf[2];
+
+    buf[0] = RX890X_REG_FLAG;
+    buf[1] = 0x00;
     i2c_write_blocking(i2c0, RX890X_ADDR, buf, 2, false);
 
     return true;
