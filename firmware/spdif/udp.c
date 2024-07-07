@@ -68,7 +68,7 @@ void udp_init(void) {
 }
 
 
-void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint16_t udp_payload_len, uint64_t udp_dst_mac) {
+void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint16_t udp_payload_len, uint32_t udp_dst_ip, uint16_t udp_dst_port, uint64_t udp_dst_mac) {
     uint16_t udp_chksum = 0;
     uint32_t i, j, idx = 0, ans;
     uint16_t  ip_len = UDP_LENGTH(udp_payload_len) + 20;
@@ -125,15 +125,15 @@ void udp_packet_gen_10base(uint32_t *buf, uint8_t *udp_payload, uint16_t udp_pay
     data_8b[idx++] = DEF_SYS_PICO_IP3;
     data_8b[idx++] = DEF_SYS_PICO_IP4;
     // IP Destination
-    data_8b[idx++] = DEF_SYS_UDP_DST_IP1;
-    data_8b[idx++] = DEF_SYS_UDP_DST_IP2;
-    data_8b[idx++] = DEF_SYS_UDP_DST_IP3;
-    data_8b[idx++] = DEF_SYS_UDP_DST_IP4;
+    data_8b[idx++] = (udp_dst_ip >>  24) & 0xFF;
+    data_8b[idx++] = (udp_dst_ip >>  16) & 0xFF;
+    data_8b[idx++] = (udp_dst_ip >>  8) & 0xFF;
+    data_8b[idx++] = (udp_dst_ip >>  0) & 0xFF;
     // UDP header
     data_8b[idx++] = (DEF_UDP_SRC_PORTNUM >>  8) & 0xFF;
     data_8b[idx++] = (DEF_UDP_SRC_PORTNUM >>  0) & 0xFF;
-    data_8b[idx++] = (DEF_UDP_DST_PORTNUM >>  8) & 0xFF;
-    data_8b[idx++] = (DEF_UDP_DST_PORTNUM >>  0) & 0xFF;
+    data_8b[idx++] = (udp_dst_port >>  8) & 0xFF;
+    data_8b[idx++] = (udp_dst_port >>  0) & 0xFF;
     data_8b[idx++] = (UDP_LENGTH(udp_payload_len) >>  8) & 0xFF;
     data_8b[idx++] = (UDP_LENGTH(udp_payload_len) >>  0) & 0xFF;
     data_8b[idx++] = (udp_chksum >>  8) & 0xFF;
