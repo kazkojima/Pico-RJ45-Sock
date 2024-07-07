@@ -371,7 +371,8 @@ static inline void _set_timer_after_by_ms(hardware_alarm_callback_t callback, ui
 static void _spdif_rx_capture_start()
 {
     // DMA0
-    dma_channel_claim(gcfg.dma_channel0);
+    //dma_channel_claim(gcfg.dma_channel0);
+    gcfg.dma_channel0 = dma_claim_unused_channel(true);
     dma_config0 = dma_channel_get_default_config(gcfg.dma_channel0);
     channel_config_set_transfer_data_size(&dma_config0, DMA_SIZE_32);
     channel_config_set_read_increment(&dma_config0, false);
@@ -598,8 +599,10 @@ static void _spdif_rx_decode_start(spdif_rx_samp_freq_t samp_freq, bool inverted
 
     // === DMA configuration ===
     __mem_fence_release();
-    dma_channel_claim(gcfg.dma_channel0);
-    dma_channel_claim(gcfg.dma_channel1);
+    //dma_channel_claim(gcfg.dma_channel0);
+    //dma_channel_claim(gcfg.dma_channel1);
+    gcfg.dma_channel0 = dma_claim_unused_channel(true);
+    gcfg.dma_channel1 = dma_claim_unused_channel(true);
 
     // DMA0
     dma_config0 = dma_channel_get_default_config(gcfg.dma_channel0);
