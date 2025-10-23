@@ -17,12 +17,15 @@
 
 
 // For UDP
-#define DEF_SYS_UDP_DST_MAC     (0x6C4B909F321F)
+// 10.253.253.8
+//#define DEF_SYS_UDP_DST_MAC     (0x6C4B909F321F)
+// 10.253.253.14
+#define DEF_SYS_UDP_DST_MAC     (0x7C8334BE1D65)
 
 #define DEF_SYS_UDP_DST_IP1     (10)
 #define DEF_SYS_UDP_DST_IP2     (253)
 #define DEF_SYS_UDP_DST_IP3     (253)
-#define DEF_SYS_UDP_DST_IP4     (8)
+#define DEF_SYS_UDP_DST_IP4     (14)
 
 // H/W PIN
 #define DEF_SYS_HWPIN_DCDC_PS   (23)

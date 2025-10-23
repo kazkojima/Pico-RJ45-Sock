@@ -1,5 +1,6 @@
 #include "hwinit.h"
 #include "hardware/vreg.h"
+#include "hardware/clocks.h"
 #include "hardware/irq.h"
 #include "hardware/gpio.h"
 #include "pico/stdlib.h"

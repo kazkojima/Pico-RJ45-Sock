@@ -227,6 +227,34 @@ int main() {
 
     stdio_init_all();
     hw_init();
+#if 0
+    //LEDs
+#define HW_PINNUM_LED_G         (18)            // Ethernet LED G
+#define HW_PINNUM_LED_Y         (19)            // Ethernet LED Y
+
+    gpio_init(DEF_SYS_HWPIN_SPDIF_ST0);
+    gpio_set_dir(DEF_SYS_HWPIN_SPDIF_ST0, GPIO_OUT);
+    gpio_init(DEF_SYS_HWPIN_SPDIF_ST1);
+    gpio_set_dir(DEF_SYS_HWPIN_SPDIF_ST1, GPIO_OUT);
+    gpio_init(HW_PINNUM_LED_G);
+    gpio_set_dir(HW_PINNUM_LED_G, GPIO_OUT);
+    gpio_init(HW_PINNUM_LED_Y);
+    gpio_set_dir(HW_PINNUM_LED_Y, GPIO_OUT);
+
+    while(1) {
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, 1);
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, 1);
+        gpio_put(HW_PINNUM_LED_G, 1);
+        gpio_put(HW_PINNUM_LED_Y, 1);
+        sleep_ms(300);
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, 0);
+        gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, 0);
+        gpio_put(HW_PINNUM_LED_G, 0);
+        gpio_put(HW_PINNUM_LED_Y, 0);
+        sleep_ms(300);
+    }
+#endif
+
     eth_init();
 #if  RTC_RX890X_EN
     rx890x_set_update_irq(rtc_1ps_callback);
@@ -376,7 +404,7 @@ int main() {
                p += 8;
            }
         }
-        if (spdif_setup_flg) {
+        if (1||spdif_setup_flg) {
             set_be32(&sample_buffer[0], vheader);
             set_be32(&sample_buffer[1], ts_sec);
             set_be32(&sample_buffer[2], ts_subsec);
