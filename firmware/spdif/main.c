@@ -220,6 +220,9 @@ const uint32_t vheader = (0<<28)|(0<<27)|(0<<26)|(0<<24)|(1<<22)|(1<<20)|(0<<16)
 #define VITA49_HEADER_SIZE (HEADER_WSIZE * sizeof(uint32_t))
 #define UDP_PAYLOAD_SIZE (VITA49_HEADER_SIZE+DATA_PAYLOAD_SIZE)
 
+// special epoch sec
+#define TS_RESET 0xfffffffe
+
 int main() {
     bool rtc_valid;
 
@@ -331,12 +334,11 @@ int main() {
             break;
         }
     }
-    if (!rtc_valid && ntp_epoch_sec) {
+    if (ntp_epoch_sec) {
         rx890x_set_time(ntp_epoch_sec);
         rx890x_clear_flag();
     }
 
-#if 1
     // Initialize S/PDIF status LEDs
     gpio_init(DEF_SYS_HWPIN_SPDIF_ST0);
     gpio_set_dir(DEF_SYS_HWPIN_SPDIF_ST0, GPIO_OUT);
@@ -381,36 +383,76 @@ int main() {
         gpio_put(DEF_SYS_HWPIN_SPDIF_ST0, state & 1);
         gpio_put(DEF_SYS_HWPIN_SPDIF_ST1, (state >> 1) & 1);
     }
-#endif
 
     uint32_t ts_sec, ts_subsec;
     time = time_us_32();
 
-    // send data packets
     while (1) {
-        eth_main();
-        spdif_rx_read(&sample_buffer[HEADER_WSIZE], n_samples);
-        //printf("n %d\n", n_samples);
-        //printf("data %08x\n", sample_buffer[0]);
+        uint32_t prev_sec;
         get_local_time(&ts_sec, &ts_subsec);
-        if (0&&time_us_32() - time > 100000) {
-            printf("sec %d subsec %08x\n",  ts_sec, ts_subsec);
-           time = time_us_32();
-           uint8_t *p=(uint8_t *)&sample_buffer[HEADER_WSIZE];
-           for (int i=0; i < 24;i++) {
-               printf("%02x: %02x %02x %02x %02x  %02x %02x %02x %02x ", i, p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
-               p += 8;
-               printf("%02x %02x %02x %02x  %02x %02x %02x %02x\n", i, p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
-               p += 8;
-           }
-        }
-        if (1||spdif_setup_flg) {
+        prev_sec = ts_sec;
+
+        // send data packets
+        while (1) {
+            eth_main();
+            spdif_rx_read(&sample_buffer[HEADER_WSIZE], n_samples);
+            //printf("n %d\n", n_samples);
+            //printf("data %08x\n", sample_buffer[0]);
+            get_local_time(&ts_sec, &ts_subsec);
+            if (0&&time_us_32() - time > 100000) {
+                printf("sec %d subsec %08x\n",  ts_sec, ts_subsec);
+                time = time_us_32();
+                uint8_t *p=(uint8_t *)&sample_buffer[HEADER_WSIZE];
+                for (int i=0; i < 24;i++) {
+                    printf("%02x: %02x %02x %02x %02x  %02x %02x %02x %02x ", i, p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
+                    p += 8;
+                    printf("%02x %02x %02x %02x  %02x %02x %02x %02x\n", i, p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
+                    p += 8;
+                }
+            }
+
+            // send reset packet when the day timer is expired
+            if (ts_sec - prev_sec > 24*3600)
+                ts_sec = TS_RESET;
             set_be32(&sample_buffer[0], vheader);
             set_be32(&sample_buffer[1], ts_sec);
             set_be32(&sample_buffer[2], ts_subsec);
             set_be32(&sample_buffer[3], 0);
             udp_packet_gen_10base(tx_buf_udp, ((uint8_t *)sample_buffer), UDP_PAYLOAD_SIZE, udp_dst_ip, DEF_UDP_DST_PORTNUM, udp_dst_eth);
             eth_tx_data(tx_buf_udp, ETHER_BUF_SIZE(UDP_PAYLOAD_SIZE)+1);
+            if (ts_sec == TS_RESET)
+                break;
+        }
+
+        // Adjust epoch clock with NTP
+        //printf("[retry NTP request]\r\n");
+        ntp_epoch_sec = 0;
+        memset(ntp_buffer, 0x02, sizeof(ntp_buffer));
+        ntp_buffer[0] = 0x63;
+
+        eth_main();
+        udp_packet_gen_10base(tx_buf_udp, (uint8_t *)ntp_buffer, sizeof(ntp_buffer), udp_dst_ip, 123, udp_dst_eth);
+        eth_tx_data(tx_buf_udp, ETHER_BUF_SIZE(sizeof(ntp_buffer))+1);
+
+        time = time_us_32();
+        while(1) {
+            eth_main();
+            if (ntp_epoch_sec) {
+                printf("[NTP reply epoch] %d\r\n", ntp_epoch_sec);
+                break;
+            }
+            if (time_us_32() - time > 100000) {
+                break;
+            }
+            // clear spdif fifo
+            uint32_t fifo_count = spdif_rx_get_fifo_count();
+            uint32_t* trash;
+            spdif_rx_read_fifo(&trash, fifo_count);
+        }
+
+        if (ntp_epoch_sec) {
+            rx890x_set_time(ntp_epoch_sec);
+            rx890x_clear_flag();
         }
     }
 
